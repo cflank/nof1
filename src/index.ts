@@ -10,6 +10,7 @@ import {
   ProfitCommandOptions,
   handleTelegramCommand
 } from './commands';
+import { registerAITradeCommands } from './commands/ai-trade';
 import { handleError, getVersion } from './utils/command-helpers';
 
 // Load environment variables
@@ -23,7 +24,7 @@ const program = new Command();
 
 program
   .name('nof1-trade')
-  .description('CLI tool for automated contract trading based on nof1 AI agents')
+  .description('AI-driven trading system with NOF1 agent following capabilities')
   .version(getVersion());
 
 // ============================================================================
@@ -98,6 +99,12 @@ program
       handleError(error, 'Profit analysis failed');
     }
   });
+
+// ============================================================================
+// AI Trading Commands Registration
+// ============================================================================
+
+registerAITradeCommands(program);
 
 // ============================================================================
 // Parse CLI Arguments

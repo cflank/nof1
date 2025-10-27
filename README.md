@@ -1,4 +1,4 @@
-# Nof1 AI Agent 跟单交易系统
+# 🤖 AI智能交易系统 (原NOF1跟单系统)
 
 中文 | [English](./README_EN.md)
 
@@ -6,7 +6,20 @@
 ![Node.js](https://img.shields.io/badge/node-%3E%3D18.0.0-green)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
-一个用于跟踪 nof1.ai AI Agent 交易信号并自动执行 Binance 合约交易的命令行工具。支持7个AI量化Agent的实时跟单，自动识别开仓、平仓、换仓和止盈止损信号。
+**全新AI指令驱动交易系统** + 原NOF1.ai Agent跟单功能的强大组合！通过向AI发送市场数据，根据AI智能分析自动执行币安期货交易。同时保留原有的7个AI量化Agent跟单功能。
+
+## 🌟 两大核心功能
+
+### 🤖 1. AI指令驱动交易 (全新!)
+- 直接向AI发送市场数据和交易提示词
+- AI分析后返回具体交易指令
+- 自动解析并执行交易决策
+- 支持OpenAI GPT-4、Claude 3.5、DeepSeek等多个AI提供商
+
+### 📊 2. NOF1 Agent跟单 (原功能)
+- 跟踪nof1.ai平台的7个AI量化Agent
+- 实时监控交易信号
+- 自动复制Agent的交易操作
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/F1F11HO935)
 
@@ -14,37 +27,78 @@
 
 ## ⚡ 快速开始
 
+### 🤖 AI指令驱动交易 (推荐)
+
 ```bash
 # 1. 安装和构建
 npm install && npm run build
 
 # 2. 配置环境变量
-cp .env.example .env
-# 编辑 .env 文件，填入 Binance API 密钥（必须启用合约交易权限）
+cp .env.ai-trading-example .env
+# 编辑 .env 文件，填入 Binance API 和 AI 提供商密钥
 
-# 3. 查看可用的AI Agent
+# 3. 查看可用的AI提供商和策略模板
+npm start -- ai-providers
+npm start -- ai-templates
+
+# 4. 测试AI连接
+npm start -- ai-test deepseek
+
+# 5. 启动AI交易（测试模式）
+npm start -- ai-trade --provider deepseek --template nof1-aggressive --dry-run
+
+# 6. 实盘AI交易（谨慎使用！）
+npm start -- ai-trade --provider deepseek --template conservative --interval 300
+```
+
+### 📊 NOF1 Agent跟单 (原功能)
+
+```bash
+# 1. 配置环境变量
+cp .env.example .env
+# 编辑 .env 文件，填入 Binance API 密钥
+
+# 2. 查看可用的AI Agent
 npm start -- agents
 
-# 4. 开始跟单（风险控制模式，不会真实交易）
+# 3. 开始跟单（风险控制模式）
 npm start -- follow deepseek-chat-v3.1 --risk-only
 
-# 5. 持续监控跟单（每30秒检查一次）
+# 4. 持续监控跟单
 npm start -- follow gpt-5 --interval 30
 
-# 6. 查看盈利统计
+# 5. 查看盈利统计
 npm start -- profit
 ```
 
 ## 🚀 功能特性
+
+### 🤖 AI指令驱动交易 (全新!)
+
+- **🧠 多AI提供商**: 支持OpenAI GPT-4、Claude 3.5、DeepSeek Chat
+- **📋 智能策略模板**: 激进、保守、剥头皮等多种交易策略
+- **🔍 自动指令解析**: 将AI文本回复转换为可执行交易指令
+- **📊 实时市场分析**: 技术指标、市场情绪、趋势分析
+- **⚡ 极低延迟**: 摆脱NOF1.ai的1小时延迟，实现近实时决策
+- **💰 成本可控**: DeepSeek每次决策仅需$0.001，极其经济
+- **🎯 高度定制**: 完全可定制的提示词和策略参数
+- **🔄 多重验证**: 置信度阈值、风险评估、多AI共识机制
+
+### 📊 NOF1 Agent跟单 (原功能)
 
 - **🤖 AI Agent跟单**: 支持7个AI量化交易Agent（GPT-5、Gemini、DeepSeek等）
 - **📊 实时监控**: 可配置轮询间隔，持续跟踪Agent交易动作
 - **🔄 智能跟单**: 自动识别开仓、平仓、换仓（OID变化）和止盈止损
 - **🎯 盈利目标退出**: 支持设置自定义盈利目标，达到后自动平仓退出
 - **🔄 自动重新跟单**: 可选的自动重新跟单功能，盈利退出后自动重新入场
+
+### 🛡️ 通用安全特性
+
 - **⚡ 合约交易**: 完整支持Binance USDT永续合约，支持1x-125x杠杆
 - **📈 盈利统计**: 精确的盈利分析，基于真实交易数据计算（含手续费统计）
-- **🛡️ 风险控制**: 支持`--risk-only`模式，只观察不执行交易
+- **🛡️ 风险控制**: 支持测试模式，只观察不执行交易
+- **📱 Telegram通知**: 实时交易通知和系统状态推送
+- **📝 详细日志**: 完整的交易记录和错误追踪
 
 ## 📊 实盘跟踪
 
@@ -445,6 +499,12 @@ npm run lint
 
 ## 📚 更多文档
 
+### 🤖 AI交易系统文档
+- **[🚀 AI交易系统完整指南](./AI_TRADING_GUIDE.md)** - AI指令驱动交易的详细使用教程
+- **[🏗️ AI交易架构设计](./AI_TRADING_ARCHITECTURE.md)** - 系统架构和技术文档
+- **[⚙️ AI交易配置示例](./.env.ai-trading-example)** - 完整的环境配置示例
+
+### 📊 NOF1跟单文档
 - **[详细跟单策略文档](./docs/follow-strategy.md)** - 完整的跟单策略和风险评估
 - **[快速参考手册](./docs/quick-reference.md)** - 常用命令快速查询
 
