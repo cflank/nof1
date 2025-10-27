@@ -77,7 +77,13 @@ export async function handleFollowCommand(agentName: string, options: CommandOpt
         console.log(`\n--- Poll #${pollingCount} ---`);
       }
 
-      const followPlans = await services.analyzer.followAgent(agentName, options.totalMargin);
+      const followOptions = {
+        totalMargin: options.totalMargin,
+        profitTarget: options.profit,
+        autoRefollow: options.autoRefollow,
+        marginType: options.marginType || 'CROSSED'
+      };
+      const followPlans = await services.analyzer.followAgent(agentName, followOptions);
 
       if (followPlans.length === 0) {
         console.log('📋 No new actions required');

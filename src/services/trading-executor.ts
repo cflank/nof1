@@ -1,5 +1,7 @@
 import { TradingPlan } from "../types/trading";
+import { TelegramService } from "./telegram-service";
 import { BinanceService, StopLossOrder, TakeProfitOrder, OrderResponse } from "./binance-service";
+import { ConfigManager } from "./config-manager";
 
 export interface ExecutionResult {
   success: boolean;
@@ -17,8 +19,11 @@ export interface StopOrderExecutionResult extends ExecutionResult {
 export class TradingExecutor {
   private binanceService: BinanceService;
   private testnet: boolean;
+  private telegramService?: TelegramService;
+  private configManager: ConfigManager;
 
-  constructor(apiKey?: string, apiSecret?: string, testnet?: boolean) {
+
+  constructor(apiKey?: string, apiSecret?: string, testnet?: boolean, configManager?: ConfigManager) {
     // 如果没有明确指定，则从环境变量读取
     if (testnet === undefined) {
       testnet = process.env.BINANCE_TESTNET === 'true';
@@ -29,6 +34,10 @@ export class TradingExecutor {
       apiSecret || process.env.BINANCE_API_SECRET || "",
       testnet
     );
+    this.configManager = configManager || new ConfigManager();
+    if (!configManager) {
+      this.configManager.loadFromEnvironment();
+    }
   }
 
   /**
@@ -87,6 +96,7 @@ export class TradingExecutor {
         const accountInfo = await this.binanceService.getAccountInfo();
         const availableMargin = parseFloat(accountInfo.availableBalance);
         const totalWalletBalance = parseFloat(accountInfo.totalWalletBalance);
+
 
         // 获取当前市场价格来计算所需保证金
         let currentPrice = 0;
@@ -186,21 +196,23 @@ export class TradingExecutor {
       // 转换为币安订单格式
       const binanceOrder = this.binanceService.convertToBinanceOrder(tradingPlan);
 
-      // 设置保证金模式为逐仓
-      try {
-        await this.binanceService.setMarginType(tradingPlan.symbol, 'ISOLATED');
-        console.log(`✅ Margin type set to ISOLATED for ${tradingPlan.symbol}`);
-      } catch (marginTypeError) {
-        // 如果已经是逐仓模式或在Multi-Assets模式下，API会返回错误，这是正常的，可以忽略
-        const errorMessage = marginTypeError instanceof Error ? marginTypeError.message : 'Unknown error';
-        if (errorMessage.includes('No need to change margin type')) {
-          console.log(`ℹ️ ${tradingPlan.symbol} is already in ISOLATED margin mode`);
-        } else if (errorMessage.includes('Multi-Assets mode') || errorMessage.includes('-4168')) {
-          console.log(`ℹ️ Account is in Multi-Assets mode, using default margin type`);
-        } else {
-          console.warn(`⚠️ Failed to set margin type: ${errorMessage}`);
+      // 设置保证金模式
+      if (tradingPlan.marginType) {
+        try {
+          await this.binanceService.setMarginType(tradingPlan.symbol, tradingPlan.marginType);
+          console.log(`✅ Margin type set to ${tradingPlan.marginType} for ${tradingPlan.symbol}`);
+        } catch (marginTypeError) {
+          // 如果已经是相同模式或在Multi-Assets模式下,API会返回错误,这是正常的,可以忽略
+          const errorMessage = marginTypeError instanceof Error ? marginTypeError.message : 'Unknown error';
+          if (errorMessage.includes('No need to change margin type')) {
+            console.log(`ℹ️ ${tradingPlan.symbol} is already in ${tradingPlan.marginType} margin mode`);
+          } else if (errorMessage.includes('Multi-Assets mode') || errorMessage.includes('-4168')) {
+            console.log(`ℹ️ Account is in Multi-Assets mode, using default margin type`);
+          } else {
+            console.warn(`⚠️ Failed to set margin type: ${errorMessage}`);
+          }
+          // 继续执行,不因为保证金模式设置失败而停止交易
         }
-        // 继续执行，不因为保证金模式设置失败而停止交易
       }
 
       // 设置杠杆（如果需要）
@@ -222,6 +234,22 @@ export class TradingExecutor {
       console.log(`   Price: ${orderResponse.avgPrice || 'Market'}`);
       console.log(`   Quantity: ${orderResponse.executedQty}`);
 
+      const telegramConfig = this.configManager.getConfig().telegram;
+      if (telegramConfig.enabled) {
+        const telegramService = new TelegramService(telegramConfig.token);
+        const formattedMessage = telegramService.formatTradeMessage({
+          symbol: orderResponse.symbol,
+          side: tradingPlan.side,
+          quantity: orderResponse.executedQty,
+          price: orderResponse.avgPrice || 'Market',
+          orderId: orderResponse.orderId.toString(),
+          status: orderResponse.status,
+          leverage: tradingPlan.leverage,
+          marginType: tradingPlan.marginType
+        });
+        await telegramService.sendMessage(telegramConfig.chatId, formattedMessage);
+      }
+      
       return {
         success: true,
         orderId: orderResponse.orderId.toString()
@@ -280,6 +308,17 @@ export class TradingExecutor {
             closePosition: "true"
           });
           takeProfitOrderId = tpOrderResponse.orderId.toString();
+          const telegramConfig = this.configManager.getConfig().telegram;
+          if (telegramConfig.enabled) {
+            const telegramService = new TelegramService(telegramConfig.token);
+            const tpMessage = telegramService.formatStopOrderMessage(
+              'take_profit',
+              stopOrders.takeProfitOrder!.symbol,
+              stopOrders.takeProfitOrder!.stopPrice.toString(),
+              takeProfitOrderId
+            );
+            await telegramService.sendMessage(telegramConfig.chatId, tpMessage);
+          }
           console.log(`✅ Take Profit order placed: ${takeProfitOrderId}`);
         } catch (tpError) {
           console.error(`❌ Failed to place Take Profit order: ${tpError instanceof Error ? tpError.message : 'Unknown error'}`);
@@ -302,11 +341,25 @@ export class TradingExecutor {
             closePosition: "true"
           });
           stopLossOrderId = slOrderResponse.orderId.toString();
+                      // Send Telegram notification for stop loss
+          const telegramConfig = this.configManager.getConfig().telegram;
+          if (telegramConfig.enabled) {
+            const telegramService = new TelegramService(telegramConfig.token);
+            const slMessage = telegramService.formatStopOrderMessage(
+              'stop_loss',
+              stopOrders.stopLossOrder!.symbol,
+              stopOrders.stopLossOrder!.stopPrice.toString(),
+              stopLossOrderId
+            );
+            await telegramService.sendMessage(telegramConfig.chatId, slMessage);
+          }
           console.log(`✅ Stop Loss order placed: ${stopLossOrderId}`);
         } catch (slError) {
           console.error(`❌ Failed to place Stop Loss order: ${slError instanceof Error ? slError.message : 'Unknown error'}`);
         }
       }
+
+      
 
       return {
         success: true,
@@ -409,6 +462,23 @@ export class TradingExecutor {
     } catch (error) {
       console.error(`❌ Failed to get open orders: ${error instanceof Error ? error.message : 'Unknown error'}`);
       return [];
+    }
+  }
+
+  /**
+   * 获取订单详情
+   */
+  async getOrderDetails(orderId: string, symbol?: string): Promise<OrderResponse | null> {
+    try {
+      // 如果没有提供symbol，我们无法获取订单详情
+      if (!symbol) {
+        console.warn(`⚠️ Cannot get order details without symbol for order ${orderId}`);
+        return null;
+      }
+      return await this.binanceService.getOrderStatus(symbol, parseInt(orderId));
+    } catch (error) {
+      console.error(`❌ Failed to get order details for ${orderId}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      return null;
     }
   }
 
